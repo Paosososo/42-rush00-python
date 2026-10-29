@@ -13,17 +13,20 @@ from transactions import (add_record, find_record, filter_history, format_money,
 
 DEFAULT_FILE = Path(__file__).resolve().with_name("moneypilot.json")
 MENU = """
-===== MONEYPILOT =====
-1. Manage actual transactions
-2. Balance, spending, and runway
-3. Check a purchase
-4. Manage monthly plans
-5. Filter actual history
-6. Six-month projection
-7. Opening balance and reserve
-8. Save JSON
-9. Load JSON
-0. Exit
++====================================+
+|              MONEYPILOT            |
+|====================================|
+|  1. Manage actual transactions     |
+|  2. Balance, spending, and runway  |
+|  3. Check a purchase               |
+|  4. Manage monthly plans           |
+|  5. Filter actual history          |
+|  6. Six-month projection           |
+|  7. Opening balance and reserve    |
+|  8. Save JSON                      |
+|  9. Load JSON                      |
+|  0. Exit                           |
++====================================+
 """
 
 
@@ -133,76 +136,77 @@ def main():
             print(MENU)
             choice = ask("Choose")
             try:
-                if choice == "1":
-                    manage_records(state, "transactions")
-                elif choice == "2":
-                    show_summary(state)
-                elif choice == "3":
-                    price = parse_money(ask("One-time purchase price in baht"))
-                    result = affordability(state, price)
-                    if result["affordable"]:
-                        print("PASS: reserve survives now and six monthly closing balances.")
-                    elif result["failed_month"] == 0:
-                        print("FAIL: below reserve immediately after the purchase.")
-                    else:
-                        print("FAIL: below reserve in projected month", result["failed_month"])
-                    if not state["plans"]:
-                        print("No monthly plans. Forecast assumes zero future flows.")
-                    print("Simulation only. No purchase was recorded.")
-                elif choice == "4":
-                    manage_records(state, "plans")
-                elif choice == "5":
-                    print("Blank filters mean any value. Dates include both endpoints.")
-                    kind = ask("Type: income/expense or blank").casefold()
-                    category = ask("Exact category or blank")
-                    start = ask("From YYYY-MM-DD or blank")
-                    end = ask("To YYYY-MM-DD or blank")
-                    matches = filter_history(state, kind, category, start, end)
-                    show_records(matches)
-                    show_spending(matches)
-                elif choice == "6":
-                    print("Six simulated future months, without calendar due dates.")
-                    print("Starting actual balance:", format_money(calculate_balance(state)), "baht")
-                    if not state["plans"]:
-                        print("No monthly plans. Forecast assumes zero future flows.")
-                    for row in project_balance(state):
-                        status = "OK"
-                        if row["balance_cents"] < state["settings"]["reserve_cents"]:
-                            status = "BELOW RESERVE"
-                        print(f"Month {row['month']}: {format_money(row['balance_cents'])} baht | {status}")
-                    print("Forecast only. Actual history is unchanged.")
-                elif choice == "7":
-                    print("Opening balance is cash BEFORE every transaction in this ledger.")
-                    print("Reserve is a threshold, not an extra expense.")
-                    opening = parse_money(ask("Opening balance in baht"), allow_zero=True)
-                    reserve = parse_money(ask("Protected reserve in baht"), allow_zero=True)
-                    state["settings"] = {"opening_balance_cents": opening, "reserve_cents": reserve}
-                    print("Settings updated.")
-                elif choice == "8":
-                    path = Path(ask("Save file", str(DEFAULT_FILE))).expanduser()
-                    if path.exists() and ask("Overwrite this file? y/n").lower() != "y":
-                        print("Save canceled.")
-                        continue
-                    save_data(state, path)
-                    saved_state = deepcopy(state)
-                    print("Saved JSON:", path)
-                elif choice == "9":
-                    path = ask("Load file", str(DEFAULT_FILE))
-                    loaded = load_data(path)
-                    if state != saved_state and ask("Type LOAD to discard unsaved changes") != "LOAD":
-                        print("Load canceled. Session kept.")
-                        continue
-                    state = loaded
-                    saved_state = deepcopy(state)
-                    print("Loaded JSON:", path)
-                elif choice == "0":
-                    if state != saved_state and ask("Exit without saving? y/n").lower() != "y":
-                        print("Exit canceled. Use option 8 to save.")
-                        continue
-                    print("Goodbye!")
-                    return
-                else:
-                    print("Invalid choice. Use 0 to 9.")
+                match choice:
+                    case "1":
+                        manage_records(state, "transactions")
+                    case "2":
+                        show_summary(state)
+                    case "3":
+                        price = parse_money(ask("One-time purchase price in baht"))
+                        result = affordability(state, price)
+                        if result["affordable"]:
+                            print("PASS: reserve survives now and six monthly closing balances.")
+                        elif result["failed_month"] == 0:
+                            print("FAIL: below reserve immediately after the purchase.")
+                        else:
+                            print("FAIL: below reserve in projected month", result["failed_month"])
+                        if not state["plans"]:
+                            print("No monthly plans. Forecast assumes zero future flows.")
+                        print("Simulation only. No purchase was recorded.")
+                    case "4":
+                        manage_records(state, "plans")
+                    case "5":
+                        print("Blank filters mean any value. Dates include both endpoints.")
+                        kind = ask("Type: income/expense or blank").casefold()
+                        category = ask("Exact category or blank")
+                        start = ask("From YYYY-MM-DD or blank")
+                        end = ask("To YYYY-MM-DD or blank")
+                        matches = filter_history(state, kind, category, start, end)
+                        show_records(matches)
+                        show_spending(matches)
+                    case "6":
+                        print("Six simulated future months, without calendar due dates.")
+                        print("Starting actual balance:", format_money(calculate_balance(state)), "baht")
+                        if not state["plans"]:
+                            print("No monthly plans. Forecast assumes zero future flows.")
+                        for row in project_balance(state):
+                            status = "OK"
+                            if row["balance_cents"] < state["settings"]["reserve_cents"]:
+                                status = "BELOW RESERVE"
+                            print(f"Month {row['month']}: {format_money(row['balance_cents'])} baht | {status}")
+                        print("Forecast only. Actual history is unchanged.")
+                    case "7":
+                        print("Opening balance is cash BEFORE every transaction in this ledger.")
+                        print("Reserve is a threshold, not an extra expense.")
+                        opening = parse_money(ask("Opening balance in baht"), allow_zero=True)
+                        reserve = parse_money(ask("Protected reserve in baht"), allow_zero=True)
+                        state["settings"] = {"opening_balance_cents": opening, "reserve_cents": reserve}
+                        print("Settings updated.")
+                    case "8":
+                        path = Path(ask("Save file", str(DEFAULT_FILE))).expanduser()
+                        if path.exists() and ask("Overwrite this file? y/n").lower() != "y":
+                            print("Save canceled.")
+                            continue
+                        save_data(state, path)
+                        saved_state = deepcopy(state)
+                        print("Saved JSON:", path)
+                    case "9":
+                        path = ask("Load file", str(DEFAULT_FILE))
+                        loaded = load_data(path)
+                        if state != saved_state and ask("Type LOAD to discard unsaved changes") != "LOAD":
+                            print("Load canceled. Session kept.")
+                            continue
+                        state = loaded
+                        saved_state = deepcopy(state)
+                        print("Loaded JSON:", path)
+                    case "0":
+                        if state != saved_state and ask("Exit without saving? y/n").lower() != "y":
+                            print("Exit canceled. Use option 8 to save.")
+                            continue
+                        print("Goodbye!")
+                        return
+                    case _:
+                        print("Invalid choice. Use 0 to 9.")
             except (ValueError, OSError) as error:
                 print("Action canceled:", error)
     except (EOFError, KeyboardInterrupt):
