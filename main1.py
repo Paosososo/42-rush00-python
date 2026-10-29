@@ -82,9 +82,9 @@ def show_records(records):
     if not records:
         print("No matching records.")
     else:
-        template = "| {:^3} | {:^7} | {:^15} | {:^18}  | {:^10} | {:^20} |"
+        template = "| {:^3} | {:^7} | {:^15} | {:^18}  | {:^10} | {:^10} |"
         template2= "| {:>3} | {:<7} | {:<15} | {:>14} "
-        note = "| {:<20} |"
+        note = "| {:<10} |"
         if "date" in records:
             print(template.format("ID","Kind","Category","Amount","Date","Note"))
         else:

@@ -28,6 +28,7 @@ def category_spending(records):
             category = record["category"]
             amount_satang = record["amount_cents"]
 
+            # Initialize category total to 0 to avoid a KeyError on the first encounter.
             if category not in totals:
                 totals[category] = 0
 

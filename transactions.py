@@ -312,7 +312,7 @@ def filter_history(state, kind="", category="", start="", end=""):
 
 
 def validate_state(state):
-    """Check a whole saved session before allowing the app to use it."""
+    """Check a loaded file before allowing the app to use it."""
     if type(state) is not dict:
         raise ValueError("Not a MoneyPilot data file.")
 
