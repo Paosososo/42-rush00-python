@@ -14,19 +14,19 @@ from transactions import (add_record, find_record, filter_history, format_money,
 DEFAULT_FILE = Path(__file__).resolve().with_name("moneypilot.json")
 MENU = """
 +====================================+
-|              MONEYPILOT            |
-|====================================|
-|  1. Manage actual transactions     |
-|  2. Balance, spending, and runway  |
-|  3. Check a purchase               |
-|  4. Manage monthly plans           |
-|  5. Filter actual history          |
-|  6. Six-month projection           |
-|  7. Opening balance and reserve    |
-|  8. Save JSON                      |
-|  9. Load JSON                      |
-|  0. Exit                           |
-+====================================+
+|  💰          MONEYPILOT            ||
+|====================================||
+|  1. Manage actual transactions     ||
+|  2. Balance, spending, and runway  ||
+|  3. Check a purchase               ||
+|  4. Manage monthly plans           ||
+|  5. Filter actual history          ||
+|  6. Six-month projection           ||
+|  7. Opening balance and reserve    ||
+|  8. Save JSON                      ||
+|  9. Load JSON                      ||
+|  0. Exit                           ||
++====================================++
 """
 
 def ask_list(prompt, choices, default=""):
