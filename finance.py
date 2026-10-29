@@ -1,72 +1,127 @@
-"""Calculations only. None of these functions changes stored records."""
+"""Calculate results without changing actual history or monthly plans."""
 
 from transactions import check_amount
 
 
 def calculate_balance(state):
+    """Start with opening cash, add actual income, and subtract actual expenses."""
     balance = state["settings"]["opening_balance_cents"]
+
     for record in state["transactions"]:
+        amount_satang = record["amount_cents"]
+
         if record["kind"] == "income":
-            balance += record["amount_cents"]
+            balance = balance + amount_satang
         else:
-            balance -= record["amount_cents"]
+            balance = balance - amount_satang
+
+    # Monthly plans are not completed payments, so this function does not add them.
     return balance
 
 
 def category_spending(records):
+    """Add actual expenses into a dictionary, using categories as the keys."""
     totals = {}
+
     for record in records:
         if record["kind"] == "expense":
             category = record["category"]
+            amount_satang = record["amount_cents"]
+
             if category not in totals:
                 totals[category] = 0
-            totals[category] += record["amount_cents"]
+
+            totals[category] = totals[category] + amount_satang
+
     return totals
 
 
 def monthly_totals(state):
-    totals = {"income_cents": 0, "expense_cents": 0}
+    """Calculate expected income and expenses for one future month."""
+    income_satang = 0
+    expenses_satang = 0
+
     for plan in state["plans"]:
+        amount_satang = plan["amount_cents"]
+
         if plan["kind"] == "income":
-            totals["income_cents"] += plan["amount_cents"]
+            income_satang = income_satang + amount_satang
         else:
-            totals["expense_cents"] += plan["amount_cents"]
+            expenses_satang = expenses_satang + amount_satang
+
+    totals = {
+        "income_cents": income_satang,
+        "expense_cents": expenses_satang,
+    }
     return totals
 
 
 def runway(state):
-    """Return months to the reserve boundary, or None for no depletion."""
+    """Estimate months until cash reaches the protected reserve."""
     balance = calculate_balance(state)
     reserve = state["settings"]["reserve_cents"]
     totals = monthly_totals(state)
-    burn = totals["expense_cents"] - totals["income_cents"]
+    monthly_income = totals["income_cents"]
+    monthly_expenses = totals["expense_cents"]
+    monthly_burn = monthly_expenses - monthly_income
+
     if balance < reserve:
         return 0.0
-    elif burn <= 0:
+
+    # None means the plan does not use up cash. It also avoids division by zero.
+    if monthly_burn <= 0:
         return None
-    else:
-        return (balance - reserve) / burn
+
+    available_cash = balance - reserve
+    months = available_cash / monthly_burn
+    return months
 
 
 def project_balance(state, purchase_cents=0):
-    """Apply each monthly total once in each of six future scenario months."""
+    """Calculate six future monthly closing balances without recording payments."""
     check_amount(purchase_cents, allow_zero=True)
-    balance = calculate_balance(state) - purchase_cents
+
+    # Count history once, then subtract the proposed one-time purchase once.
+    balance = calculate_balance(state)
+    balance = balance - purchase_cents
+
     totals = monthly_totals(state)
+    monthly_income = totals["income_cents"]
+    monthly_expenses = totals["expense_cents"]
+    monthly_change = monthly_income - monthly_expenses
     rows = []
+
     for month in range(1, 7):
-        balance += totals["income_cents"] - totals["expense_cents"]
-        rows.append({"month": month, "balance_cents": balance})
+        balance = balance + monthly_change
+
+        row = {
+            "month": month,
+            "balance_cents": balance,
+        }
+        rows.append(row)
+
     return rows
 
 
 def affordability(state, price_cents):
-    """Return the first reserve failure: 0 means now, 1..6 means future."""
+    """Check whether a purchase protects the reserve now and for six months."""
     check_amount(price_cents)
+
     reserve = state["settings"]["reserve_cents"]
-    if calculate_balance(state) - price_cents < reserve:
+    current_balance = calculate_balance(state)
+    after_purchase = current_balance - price_cents
+
+    # Month zero means the purchase itself immediately breaks the reserve.
+    if after_purchase < reserve:
         return {"affordable": False, "failed_month": 0}
-    for row in project_balance(state, price_cents):
-        if row["balance_cents"] < reserve:
-            return {"affordable": False, "failed_month": row["month"]}
+
+    rows = project_balance(state, price_cents)
+
+    for row in rows:
+        future_balance = row["balance_cents"]
+
+        if future_balance < reserve:
+            failed_month = row["month"]
+            return {"affordable": False, "failed_month": failed_month}
+
     return {"affordable": True, "failed_month": None}
