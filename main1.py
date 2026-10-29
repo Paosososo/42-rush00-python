@@ -65,7 +65,7 @@ def read_record(section, old=None):
     kind = ask_list("Type: income or expense",["income", "expense"],old["kind"]).casefold()
     amount = parse_money(ask("Amount in baht", amount_text))
     if kind == "income":
-        cat = ["salary","bonus","commission","wage","tip","other"] 
+        cat = ["salary","bonus","commission","wage","tip","dividend","cryto","other"] 
     else:
         cat = ["dining","transportation","utility","water","clothing","grocery","health care","entertainment","debt payments","other"]
 
@@ -82,19 +82,24 @@ def show_records(records):
     if not records:
         print("No matching records.")
     else:
-        template = "| {:^3} | {:^7} | {:^15} | {:^14}  | {:^10} | {:^20} |"
-        template2= "| {:>3} | {:<7} | {:<15} | {:>10} baht"
+        template = "| {:^3} | {:^7} | {:^15} | {:^18}  | {:^10} | {:^20} |"
+        template2= "| {:>3} | {:<7} | {:<15} | {:>14} "
         note = "| {:<20} |"
-        print(template.format("ID","Kind","Category","Amount","Date","Note"))
+        if "date" in records:
+            print(template.format("ID","Kind","Category","Amount","Date","Note"))
+        else:
+            print(template2.format("ID","Kind","Category","Amount"))
     for record in records:
         amount = format_money(record["amount_cents"])
 
         line = template2.format( record['id'] , record['kind'] , record['category'],amount)
+        line += "baht"
         if "date" in record:
             line += f" | {record['date']} "
+            line += note.format(record['note'])
         else:
             line += " per future month"
-        line += note.format(record['note'])
+
         print(line)
 
 

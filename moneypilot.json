@@ -22,7 +22,20 @@
       "id": 2
     }
   ],
-  "plans": [],
+  "plans": [
+    {
+      "kind": "expense",
+      "amount_cents": 100000,
+      "category": "debt payments",
+      "id": 1
+    },
+    {
+      "kind": "income",
+      "amount_cents": 100000000,
+      "category": "other",
+      "id": 2
+    }
+  ],
   "next_transaction_id": 3,
-  "next_plan_id": 1
+  "next_plan_id": 3
 }
