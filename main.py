@@ -6,9 +6,10 @@ from pathlib import Path
 
 from finance import (affordability, calculate_balance, category_spending,
                      monthly_totals, project_balance, runway)
-from storage import load_data, save_data
+from storage import load_data, load_or_create_data, save_data
 from transactions import (add_record, find_record, filter_history, format_money,
-                          new_state, parse_money, remove_record, update_record)
+                          check_reserve, initialize_account, parse_money,
+                          remove_record, update_record)
 
 
 DEFAULT_FILE = Path(__file__).resolve().with_name("moneypilot.json")
@@ -22,9 +23,9 @@ MENU = """
 |  4. Manage monthly plans           ||
 |  5. Filter actual history          ||
 |  6. Six-month projection           ||
-|  7. Opening balance and reserve    ||
-|  8. Save JSON                      ||
-|  9. Load JSON                      ||
+|  7. Change reserve                 ||
+|  8. Export JSON backup             ||
+|  9. Import JSON backup             ||
 |  0. Exit                           ||
 +====================================++
 """
@@ -82,9 +83,9 @@ def show_records(records):
     if not records:
         print("No matching records.")
     else:
-        template = "| {:^3} | {:^7} | {:^15} | {:^18}  | {:^10} | {:^20} |"
+        template = "| {:^3} | {:^7} | {:^15} | {:^18}  | {:^10} | {:^30} |"
         template2= "| {:>3} | {:<7} | {:<15} | {:>14} "
-        note = "| {:<20} |"
+        note = "| {:<30} |"
         if "date" in records:
             print(template.format("ID","Kind","Category","Amount","Date","Note"))
         else:
@@ -103,7 +104,22 @@ def show_records(records):
         print(line)
 
 
-def manage_records(state, section):
+def auto_save(state, saved_state, data_file):
+    """Remember a change as saved only after the JSON write succeeds."""
+    try:
+        save_data(state, data_file)
+    except ValueError as error:
+        print("Automatic save failed:", error)
+        print("The change is still in this session, but has NOT been saved.")
+        return
+
+    snapshot = deepcopy(state)
+    saved_state.clear()
+    saved_state.update(snapshot)
+    print("Saved automatically.")
+
+
+def manage_records(state, section, saved_state, data_file):
     print("\nEditing:", section)
     if section == "plans":
         print("Each plan is a whole monthly total. It does not record a payment.")
@@ -115,6 +131,7 @@ def manage_records(state, section):
                 values = read_record(section)
                 record = add_record(state, section, values)
                 print(f"Added record {record['id']}.")
+                auto_save(state, saved_state, data_file)
             elif choice == "2":
                 show_records(state[section])
             elif choice == "3":
@@ -123,10 +140,12 @@ def manage_records(state, section):
                 values = read_record(section, old)
                 update_record(state, section, record_id, values)
                 print("Record updated.")
+                auto_save(state, saved_state, data_file)
             elif choice == "4":
                 record_id = int(ask("ID to remove"))
                 remove_record(state, section, record_id)
                 print("Record removed.")
+                auto_save(state, saved_state, data_file)
             elif choice == "0":
                 return
             else:
@@ -158,13 +177,79 @@ def show_summary(state):
         print(f"Approximate time to the reserve boundary: {months:.2f} months.")
     if not state["plans"]:
         print("No monthly plans. Forecast assumes zero future flows.")
+    input("\n (Please Press Enter to exit to main menu)")
 
 
-def main():
-    state = new_state()
-    saved_state = deepcopy(state)  # A separate snapshot detects unsaved changes.
+def first_time_setup(state, data_file):
+    """Ask for opening cash once and save only a fully validated setup."""
+    print("First-time setup")
+    print("Opening balance is cash BEFORE every transaction in this ledger.")
+
+    while True:
+        try:
+            opening_text = ask("Opening balance in baht")
+            opening = parse_money(opening_text, allow_zero=True)
+            break
+        except ValueError as error:
+            print("Invalid opening balance:", error)
+
+    while True:
+        try:
+            reserve_text = ask("Protected reserve in baht")
+            reserve = parse_money(reserve_text, allow_zero=True)
+            check_reserve(reserve, opening)
+            break
+        except ValueError as error:
+            print("Invalid reserve:", error)
+
+    # Keep the original session intact if the initial save fails.
+    prepared = deepcopy(state)
+    initialize_account(prepared, opening, reserve)
+    save_data(prepared, data_file)
+    print("Opening balance saved. Setup will not be requested again.")
+    return prepared
+
+
+def change_reserve(state, saved_state, data_file):
+    """Change reserve against today's balance without editing opening cash."""
+    balance = calculate_balance(state)
+    balance_text = format_money(balance)
+    print("Current balance:", balance_text, "baht")
+    print("Opening balance has already been set and stays unchanged.")
+
+    old_reserve = state["settings"]["reserve_cents"]
+    default_text = format_money(old_reserve).replace(",", "")
+    reserve_text = ask("New reserve in baht", default_text)
+    reserve = parse_money(reserve_text, allow_zero=True)
+    check_reserve(reserve, balance)
+
+    state["settings"]["reserve_cents"] = reserve
+    print("Reserve updated.")
+    auto_save(state, saved_state, data_file)
+    input("\n (Please Press Enter to exit to main menu)")
+
+
+def main(data_file=None):
+    if data_file is None:
+        data_file = DEFAULT_FILE
+    data_file = Path(data_file).expanduser()
+
     print("MoneyPilot | baht | Actual history and separate monthly forecasts")
-    print("Save and load are explicit. Nothing is auto-saved.")
+    try:
+        state = load_or_create_data(data_file)
+        if not state["setup_complete"]:
+            state = first_time_setup(state, data_file)
+    except (EOFError, KeyboardInterrupt):
+        print("\nSetup was not completed. Existing saved data was not replaced.")
+        return
+    except (ValueError, OSError) as error:
+        print("Cannot open or initialize the data file:", error)
+        print("Existing saved data was not replaced.")
+        return
+
+    saved_state = deepcopy(state)
+    print("Data file:", data_file)
+    print("Saved data loads on startup. Changes are saved automatically.")
     try:
         while True:
             print(MENU)
@@ -172,7 +257,7 @@ def main():
             try:
                 match choice:
                     case "1":
-                        manage_records(state, "transactions")
+                        manage_records(state, "transactions", saved_state, data_file)
                     case "2":
                         show_summary(state)
                     case "3":
@@ -187,8 +272,10 @@ def main():
                         if not state["plans"]:
                             print("No monthly plans. Forecast assumes zero future flows.")
                         print("Simulation only. No purchase was recorded.")
+                        input("\n (Please Press Enter to exit to main menu)")
+
                     case "4":
-                        manage_records(state, "plans")
+                        manage_records(state, "plans", saved_state, data_file)
                     case "5":
                         print("Blank filters mean any value. Dates include both endpoints.")
                         kind = ask("Type: income/expense or blank").casefold()
@@ -198,6 +285,7 @@ def main():
                         matches = filter_history(state, kind, category, start, end)
                         show_records(matches)
                         show_spending(matches)
+                        input("\n (Please Press Enter to exit to main menu)")
                     case "6":
                         print("Six simulated future months, without calendar due dates.")
                         print("Starting actual balance:", format_money(calculate_balance(state)), "baht")
@@ -209,34 +297,39 @@ def main():
                                 status = "BELOW RESERVE"
                             print(f"Month {row['month']}: {format_money(row['balance_cents'])} baht | {status}")
                         print("Forecast only. Actual history is unchanged.")
+                        input("\n (Please Press Enter to exit to main menu)")
                     case "7":
-                        print("Opening balance is cash BEFORE every transaction in this ledger.")
-                        print("Reserve is a threshold, not an extra expense.")
-                        opening = parse_money(ask("Opening balance in baht"), allow_zero=True)
-                        reserve = parse_money(ask("Protected reserve in baht"), allow_zero=True)
-                        state["settings"] = {"opening_balance_cents": opening, "reserve_cents": reserve}
-                        print("Settings updated.")
+                        change_reserve(state, saved_state, data_file)
                     case "8":
-                        path = Path(ask("Save file", str(DEFAULT_FILE))).expanduser()
+                        backup_file = data_file.with_name("moneypilot_backup.json")
+                        path = Path(ask("Export file", str(backup_file))).expanduser()
                         if path.exists() and ask("Overwrite this file? y/n").lower() != "y":
                             print("Save canceled.")
                             continue
                         save_data(state, path)
-                        saved_state = deepcopy(state)
                         print("Saved JSON:", path)
                     case "9":
-                        path = ask("Load file", str(DEFAULT_FILE))
+                        backup_file = data_file.with_name("moneypilot_backup.json")
+                        path = ask("Import file", str(backup_file))
                         loaded = load_data(path)
-                        if state != saved_state and ask("Type LOAD to discard unsaved changes") != "LOAD":
+                        if not loaded["setup_complete"]:
+                            raise ValueError("That backup has no completed account setup.")
+                        if ask("Type LOAD to overwrite the current saved data") != "LOAD":
                             print("Load canceled. Session kept.")
                             continue
+                        # Write the replacement before changing the live session.
+                        save_data(loaded, data_file)
                         state = loaded
                         saved_state = deepcopy(state)
                         print("Loaded JSON:", path)
                     case "0":
-                        if state != saved_state and ask("Exit without saving? y/n").lower() != "y":
-                            print("Exit canceled. Use option 8 to save.")
-                            continue
+                        if state != saved_state:
+                            auto_save(state, saved_state, data_file)
+                            if state != saved_state:
+                                answer = ask("Exit without saving? y/n").lower()
+                                if answer != "y":
+                                    print("Exit canceled. Your unsaved changes are still here.")
+                                    continue
                         print("Goodbye!")
                         return
                     case _:
@@ -245,6 +338,8 @@ def main():
                 print("Action canceled:", error)
     except (EOFError, KeyboardInterrupt):
         print("\nInput ended. Goodbye!")
+        if state != saved_state:
+            auto_save(state, saved_state, data_file)
         if state != saved_state:
             print("Unsaved changes were not written to disk.")
 

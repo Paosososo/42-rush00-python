@@ -8,6 +8,28 @@ import tempfile
 from transactions import new_state, validate_state
 
 
+def upgrade_saved_data(state):
+    """Recognize old JSON sessions without changing their balances or history."""
+    if type(state) is not dict:
+        return state
+    if "schema_version" not in state:
+        return state
+
+    version = state["schema_version"]
+    if type(version) is not int:
+        return state
+    if version != 1:
+        return state
+
+    # Version 1 had no setup flag. Existing sessions count as already initialized.
+    if "setup_complete" in state:
+        raise ValueError("Unexpected setup field in a version 1 file.")
+    upgraded = state.copy()
+    upgraded["schema_version"] = 2
+    upgraded["setup_complete"] = True
+    return upgraded
+
+
 def load_data(path):
     """Read a JSON file and return it only after the contents pass validation."""
     try:
@@ -16,6 +38,8 @@ def load_data(path):
 
         with open(file_path, "r", encoding="utf-8") as file:
             state = json.load(file)
+
+        state = upgrade_saved_data(state)
 
         # A readable JSON file is not necessarily valid MoneyPilot data.
         validate_state(state)

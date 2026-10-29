@@ -13,7 +13,8 @@ def new_state():
     """Create the empty session used when there is no saved data file."""
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
+        "setup_complete": False,
         "settings": {"opening_balance_cents": 0, "reserve_cents": 0},
         "transactions": [],  # Completed payments.
         "plans": [],         # Future monthly totals, not completed payments.
@@ -95,6 +96,36 @@ def format_money(satang):
     remaining_satang = satang % 100
 
     return f"{sign}{baht:,}.{remaining_satang:02d}"
+
+
+def check_reserve(reserve, balance):
+    """Check a reserve when it is first set or changed by the user."""
+    check_amount(reserve, allow_zero=True)
+
+    if type(balance) is not int:
+        raise ValueError("Balance must be an integer number of satang.")
+
+    if reserve > balance:
+        maximum = format_money(balance)
+        raise ValueError(f"Reserve cannot exceed the current balance of {maximum} baht.")
+
+
+def initialize_account(state, opening_balance, reserve):
+    """Set opening cash once. A zero opening balance still completes setup."""
+    validate_state(state)
+
+    if state["setup_complete"]:
+        raise ValueError("Opening balance has already been set.")
+
+    check_amount(opening_balance, allow_zero=True)
+    check_reserve(reserve, opening_balance)
+
+    # Change the state only after both amounts pass their checks.
+    state["settings"] = {
+        "opening_balance_cents": opening_balance,
+        "reserve_cents": reserve,
+    }
+    state["setup_complete"] = True
 
 
 from datetime import date
@@ -329,8 +360,11 @@ def validate_state(state):
     if type(state["schema_version"]) is not int:
         raise ValueError("File version must be a whole number.")
 
-    if state["schema_version"] != 1:
+    if state["schema_version"] != 2:
         raise ValueError("Unsupported file version.")
+
+    if type(state["setup_complete"]) is not bool:
+        raise ValueError("Setup status must be true or false.")
 
     settings = state["settings"]
 
@@ -411,3 +445,18 @@ def validate_state(state):
 
         if next_id <= largest_id:
             raise ValueError("The next record ID must exceed all existing IDs.")
+
+    # An unfinished setup must not contain money or history that could be reset.
+    if not state["setup_complete"]:
+        if settings["opening_balance_cents"] != 0:
+            raise ValueError("An unfinished setup cannot contain an opening balance.")
+        if settings["reserve_cents"] != 0:
+            raise ValueError("An unfinished setup cannot contain a reserve.")
+        if len(state["transactions"]) != 0:
+            raise ValueError("An unfinished setup cannot contain transactions.")
+        if len(state["plans"]) != 0:
+            raise ValueError("An unfinished setup cannot contain monthly plans.")
+        if state["next_transaction_id"] != 1:
+            raise ValueError("An unfinished setup cannot contain a used transaction counter.")
+        if state["next_plan_id"] != 1:
+            raise ValueError("An unfinished setup cannot contain a used plan counter.")

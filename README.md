@@ -16,9 +16,10 @@ From the repository folder:
 python3 main.py
 ```
 
-**Saving and loading are manual in this checkout.** Each run starts with an
-empty session. Use option **9** to reopen saved data and option **8** to save
-your changes before exiting.
+On the first run, enter opening balance and reserve. Opening balance is set
+once, including when it is zero. Later runs automatically open the existing
+`moneypilot.json` beside `main.py` without asking for another opening balance.
+Changes to records and reserve are saved automatically.
 
 ## Main menu
 
@@ -30,9 +31,9 @@ your changes before exiting.
 | 4 | Add, view, update, or remove recurring monthly plans |
 | 5 | Filter actual history by type, category, and date range |
 | 6 | Show six projected monthly closing balances |
-| 7 | Set opening balance and protected reserve |
-| 8 | Save the current session as JSON |
-| 9 | Load a saved JSON session |
+| 7 | Change reserve without changing opening balance |
+| 8 | Export a separate JSON backup |
+| 9 | Import JSON and overwrite the current saved dataset |
 | 0 | Exit |
 
 Options 1 and 4 open a second menu:
@@ -64,6 +65,7 @@ date endpoints are included, and results remain in recorded order.
     transactions.py
     finance.py
     storage.py
+    test_moneypilot.py
     README.md
     auteur
     moneypilot.json
@@ -74,9 +76,10 @@ date endpoints are included, and results remain in recorded order.
 | [main.py](main.py) | Terminal menus, numbered selections, user input, and printed results |
 | [transactions.py](transactions.py) | Session structure, money/date validation, record management, and filters |
 | [finance.py](finance.py) | Balance, category totals, monthly totals, runway, projection, and affordability |
-| [storage.py](storage.py) | JSON validation, loading, and saving through a temporary file |
+| [storage.py](storage.py) | Open or create saved data, upgrade old files, and write JSON through a temporary file |
+| [test_moneypilot.py](test_moneypilot.py) | Automated checks for setup, reserve rules, restart behavior, and JSON replacement |
 | [auteur](auteur) | The team's Intra login entries |
-| `moneypilot.json` | Saved session data written through option 8 |
+| `moneypilot.json` | The automatic saved session beside `main.py` |
 
 Keep the four Python modules together so their imports can find each other.
 
@@ -95,8 +98,8 @@ actual balance = opening balance + recorded income - recorded expenses
 ```
 
 Do not enter today's bank balance and also enter the same past payments.
-Reconcile opening balance if you change which history is included. Actual
-expenses may produce a negative balance because the ledger records what
+Opening balance cannot be edited through the menu after setup. Option 7 changes
+only the reserve. Actual expenses may produce a negative balance because the ledger records what
 happened rather than preventing an overdraft. Treat the tracked cash as one
 combined pool; transfers within that pool are not additional income or expenses.
 
@@ -150,6 +153,13 @@ If actual balance is already below reserve, runway is zero. If reserve is
 intact and monthly burn is zero or negative, the result is `None`, displayed
 as no depletion under the entered plan.
 
+At setup, reserve must be between zero and opening balance. When changing it
+later, the limit is the current balance, including recorded income and expenses.
+An invalid reserve is rejected without changing the old value or opening cash.
+This rule checks reserve settings. Actual payments remain recordable if later
+spending puts balance below reserve; the existing runway calculation reports
+zero in that situation.
+
 ### Purchase checks
 
 Option 3 subtracts a proposed purchase once, then checks the remaining balance
@@ -164,32 +174,47 @@ actual expense once through option 1.
 Runway and purchase results depend on the entered monthly plan. They do not
 establish that a bill due before payday can be paid within a particular month.
 
-## Save and reopen data
+## First-time setup, saving, and JSON imports
 
-1. Use option **8** and press Enter to save as `moneypilot.json` beside
-   `main.py`, or enter another path. Existing parent directories are required.
-2. Confirm before overwriting an existing file.
-3. On a later run, use option **9** and press Enter to load that default file,
-   or enter the path you used before.
+The default data file is `moneypilot.json` beside `main.py`. Its path is based
+on the script, so launching from another directory uses the same saved session.
 
-Saving stores the settings, actual transactions, monthly plans, ID counters,
-and file-format version. Loading replaces the session rather than appending
-records. If the session has unsaved changes, type `LOAD` to confirm replacement.
-A failed load leaves the current session available.
+If there is no file, the app creates an unfinished session and asks for opening
+balance and reserve. Both must pass validation before setup is completed and
+saved. An interrupted setup is retried on the next run. A completed setup is
+not repeated, even if the account started at zero or later reaches zero.
 
-When exiting with unsaved changes, choose `n` to return to the menu and save
-with option 8. Choosing `y` discards those unsaved changes. EOF and Ctrl+C exit
-without automatically saving them.
+The new format is version 2 and stores a `setup_complete` flag. Existing
+version 1 files are recognized as already initialized, including zero-balance
+files. Their opening amount, history, plans, and counters are preserved. The
+upgrade occurs in memory; a later save writes the version 2 format.
 
-Storage writes a complete temporary file before replacing an existing save.
-The automatic-loading helper present in `storage.py` is not called by this
-checkout's `main()`; startup does not restore the JSON file automatically.
+Actual-record changes, plan changes, and reserve changes automatically save
+the complete session. If saving fails, the app says the change is still only
+in memory. It retries at exit and asks before discarding remaining unsaved
+changes. EOF and Ctrl+C also retry pending changes.
+
+Option **8** exports a backup, defaulting to `moneypilot_backup.json`. It asks
+before overwriting an existing destination. Custom parent directories must
+already exist.
+
+Option **9** imports a JSON backup. After validation, type `LOAD` to overwrite
+the current saved dataset. The imported opening balance, records, plans, and
+settings replace the previous dataset; they are not added to it. The replacement
+is saved before switching the live session and is reopened on the next run.
+An unfinished setup cannot be imported over an initialized account.
+
+A failed import keeps the current session. A damaged startup file is reported
+and kept unchanged rather than reset. Storage writes a complete temporary file
+before replacing an existing save.
 
 ## Validation and business rules
 
 - Payment amounts, monthly totals, and purchase prices must be positive.
   Opening balance and reserve may be zero. Input allows at most two decimal
   places and up to 1,000,000,000.00 baht per entered amount.
+- Opening balance is initialized once. A reserve setting cannot exceed the
+  current balance at the time it is set or changed.
 - Actual payment dates must be real dates and cannot be in the future.
 - A monthly type/category pair must be unique. Update the existing total
   instead of adding it twice, or remove it to stop that plan.
@@ -203,9 +228,10 @@ input, missing IDs, and file problems without treating the action as successful.
 
 ## Example workflow
 
-These are fictional practice values. Start with an empty session.
+These are fictional practice values. Use a separate project copy without a
+saved data file to practise a first run while keeping your existing data.
 
-1. Option 7: set opening balance to `10000` and reserve to `2000`.
+1. At first-time setup, enter opening balance `10000` and reserve `2000`.
 2. Option 1, Add: select income, enter `2000`, select salary, and enter a past
    payment date and an optional note.
 3. Add an expense of `500`, category grocery, then choose Back.
@@ -219,7 +245,9 @@ These are fictional practice values. Start with an empty session.
    A `600` purchase fails in month 6 at 1,900 baht. Neither check changes history.
 9. Option 5: filter `expense` and `grocery`, with a date range covering the
    payment. Update and remove that record through option 1 to demonstrate CRUD.
-10. Save with option 8. Exit, restart, and load with option 9 to restore the data.
+10. Exit and restart to show that the saved account reopens automatically.
+    Export a backup with option 8. Import it through option 9 and type `LOAD`
+    to demonstrate replacement without duplicating the opening balance.
 
 ## Checking the program
 
@@ -229,11 +257,16 @@ To check Python syntax from the repository folder:
 python3 -m py_compile main.py transactions.py finance.py storage.py
 ```
 
-This checks syntax rather than complete behavior. This checkout does not
-include an automated test-suite file. A documentation smoke check using
-Python 3.14.5 exercised all nine main options in an isolated copy, including
-record CRUD, a plan update, filters, the example calculations, purchase checks,
-and manual save/load across separate launches.
+This checks syntax rather than complete behavior. Run the automated tests with:
+
+```sh
+python3 -B -m unittest -v
+```
+
+The tests cover one-time setup, zero balances, reserve limits, reopening data,
+JSON replacement, legacy-file upgrades, corrupt files, failed writes, and the
+existing forecast and affordability calculations. They use temporary data
+files rather than the project's real saved account.
 
 For a defense rehearsal, also demonstrate an invalid menu choice, an invalid
 amount, a future payment date, a nonexistent ID, and a duplicate monthly plan.
