@@ -29,6 +29,23 @@ MENU = """
 +====================================+
 """
 
+def ask_list(prompt, choices, default=""):
+    if len(choices) != 0:
+        prompt += f" no choices"
+    for i, choice in enumerate(choices, 1):
+        print(f"  {i}) {choice}")
+        
+    while True:
+        if default != "":
+            prompt = f"[{default}]"
+        answer = input(f"Enter number (1-{len(choices)})[{default}]: ").strip()
+        if answer.isdigit() and 1 <= int(answer) <= len(choices):
+            return choices[int(answer) - 1]
+        if answer == "" and default != "":
+            return default
+        print("❌ Invalid selection. Please try again.")
+    return choices[answer]
+
 
 def ask(prompt, default=""):
     """A blank answer keeps the displayed default."""
@@ -45,9 +62,14 @@ def read_record(section, old=None):
         old = {"kind": "", "amount_cents": 0, "category": "",
                "date": date.today().isoformat(), "note": ""}
     amount_text = format_money(old["amount_cents"]).replace(",", "")
-    kind = ask("Type: income or expense", old["kind"]).casefold()
+    kind = ask_list("Type: income or expense",["income", "expense"],old["kind"]).casefold()
     amount = parse_money(ask("Amount in baht", amount_text))
-    category = ask("Category", old["category"])
+    if kind == "income":
+        cat = ["salary","bonus","commission","wage","tip","other"] 
+    else:
+        cat = ["dining","transportation","utility","water","clothing","grocery","health care","entertainment","debt payments","other"]
+
+    category = ask_list("Category",cat,old["category"])
     values = {"kind": kind, "amount_cents": amount, "category": category}
     if section == "transactions":
         values["date"] = ask("Completed date YYYY-MM-DD", old["date"])
