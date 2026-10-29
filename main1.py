@@ -81,13 +81,20 @@ def read_record(section, old=None):
 def show_records(records):
     if not records:
         print("No matching records.")
+    else:
+        template = "| {:^3} | {:^7} | {:^15} | {:^14}  | {:^10} | {:^20} |"
+        template2= "| {:>3} | {:<7} | {:<15} | {:>10} baht"
+        note = "| {:<20} |"
+        print(template.format("ID","Kind","Category","Amount","Date","Note"))
     for record in records:
         amount = format_money(record["amount_cents"])
-        line = f"ID {record['id']} | {record['kind']} | {record['category']} | {amount} baht"
+
+        line = template2.format( record['id'] , record['kind'] , record['category'],amount)
         if "date" in record:
-            line += f" | {record['date']} | {record['note']}"
+            line += f" | {record['date']} "
         else:
             line += " per future month"
+        line += note.format(record['note'])
         print(line)
 
 
