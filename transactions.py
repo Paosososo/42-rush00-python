@@ -128,7 +128,6 @@ def initialize_account(state, opening_balance, reserve):
     state["setup_complete"] = True
 
 
-from datetime import date
 
 
 def check_date(text, allow_future=False):

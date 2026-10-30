@@ -31,21 +31,29 @@ MENU = """
 """
 
 def ask_list(prompt, choices, default=""):
-    if len(choices) != 0:
-        prompt += f" no choices"
-    for i, choice in enumerate(choices, 1):
-        print(f"  {i}) {choice}")
-        
+    print(prompt)
+
+    for number, choice in enumerate(choices, 1):
+        print(f"  {number}) {choice}")
+
     while True:
-        if default != "":
-            prompt = f"[{default}]"
-        answer = input(f"Enter number (1-{len(choices)})[{default}]: ").strip()
-        if answer.isdigit() and 1 <= int(answer) <= len(choices):
-            return choices[int(answer) - 1]
+        answer = input(
+            f"Enter number (1-{len(choices)})[{default}]: "
+        ).strip()
+
         if answer == "" and default != "":
             return default
-        print("❌ Invalid selection. Please try again.")
-    return choices[answer]
+
+        try:
+            selected_number = int(answer)
+        except ValueError:
+            print("Please enter a number.")
+            continue
+
+        if 1 <= selected_number <= len(choices):
+            return choices[selected_number - 1]
+
+        print("Invalid selection. Please try again.")
 
 
 def ask(prompt, default=""):
@@ -86,7 +94,7 @@ def show_records(records):
         template = "| {:^3} | {:^7} | {:^15} | {:^18}  | {:^10} | {:^30} |"
         template2= "| {:>3} | {:<7} | {:<15} | {:>14} "
         note = "| {:<30} |"
-        if "date" in records:
+        if "date" in records[0]:
             print(template.format("ID","Kind","Category","Amount","Date","Note"))
         else:
             print(template2.format("ID","Kind","Category","Amount"))

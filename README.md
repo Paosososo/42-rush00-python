@@ -65,7 +65,6 @@ date endpoints are included, and results remain in recorded order.
     transactions.py
     finance.py
     storage.py
-    test_moneypilot.py
     README.md
     auteur
     moneypilot.json
@@ -77,7 +76,6 @@ date endpoints are included, and results remain in recorded order.
 | [transactions.py](transactions.py) | Session structure, money/date validation, record management, and filters |
 | [finance.py](finance.py) | Balance, category totals, monthly totals, runway, projection, and affordability |
 | [storage.py](storage.py) | Open or create saved data, upgrade old files, and write JSON through a temporary file |
-| [test_moneypilot.py](test_moneypilot.py) | Automated checks for setup, reserve rules, restart behavior, and JSON replacement |
 | [auteur](auteur) | The team's Intra login entries |
 | `moneypilot.json` | The automatic saved session beside `main.py` |
 
@@ -251,22 +249,14 @@ saved data file to practise a first run while keeping your existing data.
 
 ## Checking the program
 
-To check Python syntax from the repository folder:
+To check Python syntax from the folder containing `main.py`:
 
 ```sh
 python3 -m py_compile main.py transactions.py finance.py storage.py
 ```
 
-This checks syntax rather than complete behavior. Run the automated tests with:
-
-```sh
-python3 -B -m unittest -v
-```
-
-The tests cover one-time setup, zero balances, reserve limits, reopening data,
-JSON replacement, legacy-file upgrades, corrupt files, failed writes, and the
-existing forecast and affordability calculations. They use temporary data
-files rather than the project's real saved account.
+This checks Python syntax. Use the walkthrough above to check the program's
+behavior manually.
 
 For a defense rehearsal, also demonstrate an invalid menu choice, an invalid
 amount, a future payment date, a nonexistent ID, and a duplicate monthly plan.
